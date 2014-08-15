@@ -19,7 +19,6 @@ module Spree
     attr_reader :coupon_code
     attr_accessor :temporary_address
 
-
     if Spree.user_class
       belongs_to :user, class_name: Spree.user_class.to_s
       belongs_to :created_by, class_name: Spree.user_class.to_s
@@ -60,6 +59,8 @@ module Spree
     state_machine do
       before_transition any => any, do: :update_cart_info
     end
+
+
 
     accepts_nested_attributes_for :line_items
     accepts_nested_attributes_for :bill_address
@@ -234,8 +235,8 @@ module Spree
 
     def save_user_address(user)
       if user.present? 
-        user.ship_address = self.ship_address if self.ship_address.valid?
-        user.bill_address = self.bill_address if self.bill_address.valid?
+        user.ship_address = self.ship_address if self.ship_address && self.ship_address.valid?
+        user.bill_address = self.bill_address if self.bill_address && self.bill_address.valid?
       end
     end    
 
@@ -716,7 +717,7 @@ module Spree
       end
 
       def use_billing?
-        @use_billing == true || @use_billing == 'true' || @use_billing == '1'
+        self.use_billing == true
       end
 
       def set_currency

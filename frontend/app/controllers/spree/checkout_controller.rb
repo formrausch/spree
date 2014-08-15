@@ -7,7 +7,7 @@ module Spree
     ssl_required
 
     before_action -> { store_location }
-    before_action -> { save_user_addresses }    
+    before_action -> { save_user_addresses }
 
     before_filter :load_order_with_lock
 
