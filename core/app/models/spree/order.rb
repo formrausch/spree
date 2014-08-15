@@ -5,7 +5,8 @@ module Spree
   class Order < Spree::Base
     include Spree::Order::Checkout
     include Spree::Order::CurrencyUpdater
-
+    include ActionView::Helpers::TextHelper
+    
     checkout_flow do
       go_to_state :address
       go_to_state :delivery
@@ -17,6 +18,7 @@ module Spree
 
     attr_reader :coupon_code
     attr_accessor :temporary_address
+
 
     if Spree.user_class
       belongs_to :user, class_name: Spree.user_class.to_s
@@ -55,6 +57,10 @@ module Spree
       end
     end
 
+    state_machine do
+      before_transition any => any, do: :update_cart_info
+    end
+
     accepts_nested_attributes_for :line_items
     accepts_nested_attributes_for :bill_address
     accepts_nested_attributes_for :ship_address
@@ -65,8 +71,8 @@ module Spree
     before_validation :set_currency
     before_validation :generate_order_number, on: :create
     before_validation :clone_billing_address, if: :use_billing?
-    attr_accessor :use_billing
 
+    before_validation :mirror_phone
 
     before_create :create_token
     before_create :link_by_email
@@ -76,6 +82,9 @@ module Spree
     validates :email, email: true, if: :require_email, allow_blank: true
     validates :number, uniqueness: true
     validate :has_available_shipment
+
+    validates :terms_of_service, acceptance: {accept: true, allow_nil: false}, if: :require_terms_acceptance
+    
 
     make_permalink field: :number
 
@@ -114,6 +123,35 @@ module Spree
     def self.register_update_hook(hook)
       self.update_hooks.add(hook)
     end
+
+    # clear cart, tax and shipping info and recalculate
+    # this way a user can change her address and the free shipping
+    # is applied correctly (and adjust the cart)
+    #
+    def update_cart_info
+      ensure_updated_shipments 
+      # clear shipments and start over
+      
+      #create tax adjusments
+      create_tax_charge!
+
+      # create shipments, deletes adjusments
+      create_proposed_shipments
+
+      # per default use the first shipping method
+      if shipments.any? && shipments.first.shipping_rates.any?
+        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample
+      end
+      
+      # update shippment costs
+      set_shipments_cost
+      refresh_shipment_rates
+
+      apply_free_shipping_promotions
+
+      update_adjustments_on_payment_change
+    end  
+
 
     def all_adjustments
       Adjustment.where("order_id = :order_id OR (adjustable_id = :order_id AND adjustable_type = 'Spree::Order')",
@@ -173,6 +211,33 @@ module Spree
     def completed?
       completed_at.present?
     end
+
+    def require_terms_acceptance
+      return true unless new_record? or ['cart'].include?(state)
+    end
+
+    def require_email
+      return true unless new_record? or ['cart'].include?(state)
+    end
+
+    def mirror_phone
+      if ship_address.present? && bill_address.present?
+        ship_address.phone = bill_address.phone
+      end
+    end
+
+    def payed?
+      self.payments.where.not("state" => "invalid").any? do |p|
+        p.state == "completed"
+      end
+    end
+
+    def save_user_address(user)
+      if user.present? 
+        user.ship_address = self.ship_address if self.ship_address.valid?
+        user.bill_address = self.bill_address if self.bill_address.valid?
+      end
+    end    
 
     # Indicates whether or not the user is allowed to proceed to checkout.
     # Currently this is implemented as a check for whether or not there is at
@@ -315,7 +380,10 @@ module Spree
     end
 
     def can_ship?
-      self.complete? || self.resumed? || self.awaiting_return? || self.returned?
+      # self.complete? || self.resumed? || self.awaiting_return? || self.returned?
+      # FR: Fix bug in admin: Shipments are stuck in delivery state 
+      # and cant be shipped
+      self.delivery? || self.complete? || self.resumed? || self.awaiting_return? || self.returned? 
     end
 
     def credit_cards
