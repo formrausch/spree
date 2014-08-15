@@ -18,9 +18,18 @@ module Spree
 
     def update_stock_item_quantity
       return unless self.stock_item.should_track_inventory?
+
+      # FR: Update all backordered orders
+      begin
+        self.stock_item.variant.inventory_units.each {|iu| iu.order.update! }
+      rescue 
+        # just skip this for now
+      end
+      
       stock_item.adjust_count_on_hand quantity
     end
 
   end
 end
+
 

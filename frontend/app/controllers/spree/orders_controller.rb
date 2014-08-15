@@ -12,6 +12,10 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
+    before_action -> { current_order.update_cart_info if current_order }
+
+    helper Spree::CheckoutHelper
+
     def show
       @order = Order.find_by_number!(params[:id])
     end
@@ -44,6 +48,7 @@ module Spree
       populator = Spree::OrderPopulator.new(current_order(create_order_if_necessary: true), current_currency)
 
       if populator.populate(params[:variant_id], params[:quantity])
+        flash[:notice] = Spree.t(:added_to_cart)
         respond_with(@order) do |format|
           format.html { redirect_to cart_path }
         end

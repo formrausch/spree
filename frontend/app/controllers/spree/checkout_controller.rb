@@ -6,6 +6,9 @@ module Spree
   class CheckoutController < Spree::StoreController
     ssl_required
 
+    before_action -> { store_location }
+    before_action -> { save_user_addresses }    
+
     before_filter :load_order_with_lock
 
     before_filter :ensure_order_not_completed
@@ -46,6 +49,24 @@ module Spree
     end
 
     private
+
+
+
+  def save_marketing
+    if params["order"] && params["order"]["accepts_marketing"]
+      sub = Formrausch::Subscription.create_from_order(current_order)
+      if sub.valid?
+        sub.send_to_campaign_monitor(false, ENV["CAMPAIGN_MONITOR_CHECKOUT_LIST_ID"])
+      end
+      @order.accepts_marketing = true
+      @order.save
+    end
+  end    
+
+      private def save_user_addresses
+         current_order.save_user_address(spree_current_user)
+      end
+
       def ensure_valid_state
         unless skip_state_validation?
           if (params[:state] && !@order.has_checkout_step?(params[:state])) ||
@@ -107,10 +128,8 @@ module Spree
       end
 
       def before_address
-        # if the user has a default address, a callback takes care of setting
-        # that; but if he doesn't, we need to build an empty one here
-        @order.bill_address ||= Address.build_default
-        @order.ship_address ||= Address.build_default if @order.checkout_steps.include?('delivery')
+        @order.bill_address ||= Spree::Address.default(try_spree_current_user, "bill")
+        @order.ship_address ||= Spree::Address.default(try_spree_current_user, "ship") if @order.checkout_steps.include?('delivery')
       end
 
       def before_delivery
