@@ -50,6 +50,7 @@ module Spree
       if populator.populate(params[:variant_id], params[:quantity])
         flash[:notice] = Spree.t(:added_to_cart)
         respond_with(@order) do |format|
+          format.js   { redirect_to :back }
           format.html { redirect_to cart_path }
         end
       else

@@ -287,6 +287,7 @@ module Spree
     end
 
     def clone_billing_address
+      return if bill_address.nil?
       if bill_address and self.ship_address.nil?
         self.ship_address = bill_address.clone
       else
