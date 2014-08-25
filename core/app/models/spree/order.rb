@@ -56,10 +56,6 @@ module Spree
       end
     end
 
-    state_machine do
-      before_transition any => any, do: :update_cart_info
-    end
-
 
 
     accepts_nested_attributes_for :line_items
@@ -125,33 +121,38 @@ module Spree
       self.update_hooks.add(hook)
     end
 
+    state_machine do
+      before_transition all => all, do: :update_cart_info
+    end
+
     # clear cart, tax and shipping info and recalculate
     # this way a user can change her address and the free shipping
     # is applied correctly (and adjust the cart)
     #
     def update_cart_info
-      ensure_updated_shipments 
-      # clear shipments and start over
-      
-      #create tax adjusments
-      create_tax_charge!
-
-      # create shipments, deletes adjusments
-      create_proposed_shipments
-
-      # per default use the first shipping method
-      if shipments.any? && shipments.first.shipping_rates.any?
-        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample
+      # # create shipments, deletes adjusments
+      if bill_address && bill_address.valid?
+        create_proposed_shipments
       end
       
-      # update shippment costs
-      set_shipments_cost
-      refresh_shipment_rates
+      # # per default use the first shipping method
+      if shipments.present? && !shipments.any? { |shipment| shipment.shipping_rates.blank? }
+        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample
 
+        # update shippment costs
+        set_shipments_cost
+        refresh_shipment_rates
+      end
+
+      # and free shipping
       apply_free_shipping_promotions
-
+      
+      # remove or add cod payment adjustments
       update_adjustments_on_payment_change
-    end  
+
+      # #create tax adjustments
+      create_tax_charge!
+    end
 
 
     def all_adjustments

@@ -24,12 +24,15 @@ module Spree
 
     helper 'spree/orders'
 
-    rescue_from Spree::Core::GatewayError, :with => :rescue_from_spree_gateway_error
 
+    rescue_from Spree::Core::GatewayError, :with => :rescue_from_spree_gateway_error
+    
+    
     # Updates the order and advances to the next state (when possible.)
     def update
       if @order.update_from_params(params, permitted_checkout_attributes, request.headers.env)
         @order.temporary_address = !params[:save_user_address]
+#
         unless @order.next
           flash[:error] = @order.errors.full_messages.join("\n")
           redirect_to checkout_state_path(@order.state) and return
@@ -50,18 +53,16 @@ module Spree
 
     private
 
-
-
-  def save_marketing
-    if params["order"] && params["order"]["accepts_marketing"]
-      sub = Formrausch::Subscription.create_from_order(current_order)
-      if sub.valid?
-        sub.send_to_campaign_monitor(false, ENV["CAMPAIGN_MONITOR_CHECKOUT_LIST_ID"])
+    def save_marketing
+      if params["order"] && params["order"]["accepts_marketing"]
+        sub = Formrausch::Subscription.create_from_order(current_order)
+        if sub.valid?
+          sub.send_to_campaign_monitor(false, ENV["CAMPAIGN_MONITOR_CHECKOUT_LIST_ID"])
+        end
+        @order.accepts_marketing = true
+        @order.save
       end
-      @order.accepts_marketing = true
-      @order.save
     end
-  end    
 
       private def save_user_addresses
          current_order.save_user_address(spree_current_user)

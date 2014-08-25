@@ -12,7 +12,7 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
-    before_action -> { current_order.update_cart_info if current_order }
+    # before_action -> { current_order.update_cart_info if current_order }
 
     helper Spree::CheckoutHelper
 
