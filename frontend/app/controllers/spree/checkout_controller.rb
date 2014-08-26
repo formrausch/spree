@@ -6,6 +6,8 @@ module Spree
   class CheckoutController < Spree::StoreController
     ssl_required
 
+    before_action -> { current_order.update_cart_info if current_order }
+    
     before_action -> { store_location }
     before_action -> { save_user_addresses }
 
@@ -53,19 +55,21 @@ module Spree
 
     private
 
-    def save_marketing
-      if params["order"] && params["order"]["accepts_marketing"]
-        sub = Formrausch::Subscription.create_from_order(current_order)
-        if sub.valid?
-          sub.send_to_campaign_monitor(false, ENV["CAMPAIGN_MONITOR_CHECKOUT_LIST_ID"])
+      def save_marketing
+        if params["order"] && params["order"]["accepts_marketing"]
+          sub = Formrausch::Subscription.create_from_order(current_order)
+          if sub.valid?
+            sub.send_to_campaign_monitor(false, ENV["CAMPAIGN_MONITOR_CHECKOUT_LIST_ID"])
+          end
+          @order.accepts_marketing = true
+          @order.save
         end
-        @order.accepts_marketing = true
-        @order.save
       end
-    end
 
-      private def save_user_addresses
+      def save_user_addresses
+        if current_order
          current_order.save_user_address(spree_current_user)
+        end
       end
 
       def ensure_valid_state

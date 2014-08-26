@@ -12,7 +12,7 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
-    # before_action -> { current_order.update_cart_info if current_order }
+    before_action :update_cart_and_adjustments, only: :edit
 
     helper Spree::CheckoutHelper
 
@@ -87,6 +87,13 @@ module Spree
     end
 
     private
+
+      def update_cart_and_adjustments
+        if current_order 
+          current_order.state ='cart'
+          current_order.update_cart_info  
+        end
+      end
 
       def order_params
         if params[:order]

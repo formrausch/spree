@@ -131,27 +131,33 @@ module Spree
     #
     def update_cart_info
       # # create shipments, deletes adjusments
-      if bill_address && bill_address.valid?
-        create_proposed_shipments
-      end
+      create_proposed_shipments
       
-      # # per default use the first shipping method
-      if shipments.present? && !shipments.any? { |shipment| shipment.shipping_rates.blank? }
-        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample
+      # per default use the first shipping method
+      select_a_possible_shipping_rate
 
-        # update shippment costs
-        set_shipments_cost
-        refresh_shipment_rates
-      end
+      # update shippment costs
+      set_shipments_cost
+      refresh_shipment_rates
 
       # and free shipping
-      apply_free_shipping_promotions
+      apply_free_shipping_promotions if shipments_available?
       
       # remove or add cod payment adjustments
       update_adjustments_on_payment_change
 
       # #create tax adjustments
       create_tax_charge!
+    end  
+
+    def select_a_possible_shipping_rate
+      if shipments_available?
+        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample      
+      end
+    end
+
+    def shipments_available?
+      shipments.present? && !shipments.any? { |shipment| !shipment.valid? || shipment.shipping_rates.blank? }      
     end
 
 
@@ -215,11 +221,11 @@ module Spree
     end
 
     def require_terms_acceptance
-      return true unless new_record? or ['cart'].include?(state)
+      state != 'cart' || !new_record?
     end
 
     def require_email
-      return true unless new_record? or ['cart'].include?(state)
+      state != 'cart' || !new_record?
     end
 
     def mirror_phone
@@ -419,7 +425,11 @@ module Spree
     end
 
     def deliver_order_confirmation_email
-      OrderMailer.confirm_email(self.id).deliver
+      if ENV["ASYNC_EMAILS"] && defined?(Sidekiq)  
+        Spree::OrderMailer.delay.confirm_email(self.id)
+      else
+        OrderMailer.confirm_email(self.id).deliver
+      end
       update_column(:confirmation_delivered, true)
     end
 
