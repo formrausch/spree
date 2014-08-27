@@ -12,10 +12,10 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
-    before_action :update_cart_and_adjustments, only: :edit
+    before_action :update_cart_and_adjustments, except: 'show'
 
     helper Spree::CheckoutHelper
-
+  
     def show
       @order = Order.find_by_number!(params[:id])
     end

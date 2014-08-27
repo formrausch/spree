@@ -75,12 +75,11 @@ module Spree
     before_create :link_by_email
     before_update :homogenize_line_item_currencies, if: :currency_changed?
 
-    validates :email, presence: true, if: :require_email
-    validates :email, email: true, if: :require_email, allow_blank: true
+    validates :email, email: true, presence: true, if: :require_on_address_page
     validates :number, uniqueness: true
     validate :has_available_shipment
 
-    validates :terms_of_service, acceptance: {accept: true, allow_nil: false}, if: :require_terms_acceptance
+    validates :terms_of_service, acceptance: {accept: true, allow_nil: false}, if: :require_on_address_page
     
 
     make_permalink field: :number
@@ -220,12 +219,10 @@ module Spree
       completed_at.present?
     end
 
-    def require_terms_acceptance
-      state != 'cart' || !new_record?
-    end
-
-    def require_email
-      state != 'cart' || !new_record?
+    def require_on_address_page
+      # true unless state == 'cart' || new_record? or ['cart'].include?(state)
+      return false if state == 'cart' 
+      true
     end
 
     def mirror_phone
