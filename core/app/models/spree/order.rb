@@ -151,7 +151,7 @@ module Spree
 
     def select_a_possible_shipping_rate
       if shipments_available?
-        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.sample      
+        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.first
       end
     end
 
