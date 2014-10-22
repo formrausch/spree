@@ -1,4 +1,3 @@
-require 'spree/core/validators/email'
 require 'spree/order/checkout'
 
 module Spree
@@ -6,6 +5,7 @@ module Spree
     include Spree::Order::Checkout
     include Spree::Order::CurrencyUpdater
     include ActionView::Helpers::TextHelper
+
     
     checkout_flow do
       go_to_state :address
@@ -119,9 +119,9 @@ module Spree
     def self.register_update_hook(hook)
       self.update_hooks.add(hook)
     end
-
+    
     state_machine do
-      before_transition all => all, do: :update_cart_info
+      # before_transition all => all, do: :update_cart_info
     end
 
     # clear cart, tax and shipping info and recalculate
@@ -129,6 +129,7 @@ module Spree
     # is applied correctly (and adjust the cart)
     #
     def update_cart_info
+      puts ")" * 100
       # # create shipments, deletes adjusments
       create_proposed_shipments
       
