@@ -6,7 +6,7 @@ module Spree
     include Spree::Order::CurrencyUpdater
     include ActionView::Helpers::TextHelper
 
-    
+
     checkout_flow do
       go_to_state :address
       go_to_state :delivery
@@ -80,7 +80,7 @@ module Spree
     validate :has_available_shipment
 
     validates :terms_of_service, acceptance: {accept: true, allow_nil: false}, if: :require_on_address_page
-    
+
 
     make_permalink field: :number
 
@@ -119,7 +119,7 @@ module Spree
     def self.register_update_hook(hook)
       self.update_hooks.add(hook)
     end
-    
+
     state_machine do
       # before_transition all => all, do: :update_cart_info
     end
@@ -132,7 +132,7 @@ module Spree
       puts ")" * 100
       # # create shipments, deletes adjusments
       create_proposed_shipments
-      
+
       # per default use the first shipping method
       select_a_possible_shipping_rate
 
@@ -142,13 +142,15 @@ module Spree
 
       # and free shipping
       apply_free_shipping_promotions if shipments_available?
-      
+
       # remove or add cod payment adjustments
       update_adjustments_on_payment_change
 
       # #create tax adjustments
       create_tax_charge!
-    end  
+
+      update_totals
+    end
 
     def select_a_possible_shipping_rate
       if shipments_available?
@@ -157,7 +159,7 @@ module Spree
     end
 
     def shipments_available?
-      shipments.present? && !shipments.any? { |shipment| !shipment.valid? || shipment.shipping_rates.blank? }      
+      shipments.present? && !shipments.any? { |shipment| !shipment.valid? || shipment.shipping_rates.blank? }
     end
 
 
@@ -222,7 +224,7 @@ module Spree
 
     def require_on_address_page
       # true unless state == 'cart' || new_record? or ['cart'].include?(state)
-      return false if state == 'cart' 
+      return false if state == 'cart'
       true
     end
 
@@ -239,11 +241,11 @@ module Spree
     end
 
     def save_user_address(user)
-      if user.present? 
+      if user.present?
         user.ship_address = self.ship_address if self.ship_address && self.ship_address.valid?
         user.bill_address = self.bill_address if self.bill_address && self.bill_address.valid?
       end
-    end    
+    end
 
     # Indicates whether or not the user is allowed to proceed to checkout.
     # Currently this is implemented as a check for whether or not there is at
@@ -388,9 +390,9 @@ module Spree
 
     def can_ship?
       # self.complete? || self.resumed? || self.awaiting_return? || self.returned?
-      # FR: Fix bug in admin: Shipments are stuck in delivery state 
+      # FR: Fix bug in admin: Shipments are stuck in delivery state
       # and cant be shipped
-      self.delivery? || self.complete? || self.resumed? || self.awaiting_return? || self.returned? 
+      self.delivery? || self.complete? || self.resumed? || self.awaiting_return? || self.returned?
     end
 
     def credit_cards
@@ -423,7 +425,7 @@ module Spree
     end
 
     def deliver_order_confirmation_email
-      if ENV["ASYNC_EMAILS"] && defined?(Sidekiq)  
+      if ENV["ASYNC_EMAILS"] && defined?(Sidekiq)
         Spree::OrderMailer.delay.confirm_email(self.id)
       else
         OrderMailer.confirm_email(self.id).deliver
