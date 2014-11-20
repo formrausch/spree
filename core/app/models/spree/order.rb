@@ -120,36 +120,40 @@ module Spree
       self.update_hooks.add(hook)
     end
 
-    state_machine do
-      # before_transition all => all, do: :update_cart_info
-    end
+    # state_machine do
+    #   # before_transition all => all, do: :update_cart_info
+    # end
 
     # clear cart, tax and shipping info and recalculate
     # this way a user can change her address and the free shipping
     # is applied correctly (and adjust the cart)
     #
     def update_cart_info
-      puts ")" * 100
-      # # create shipments, deletes adjusments
-      create_proposed_shipments
+      if !shipments_available? || state == 'payment'
+        puts "." * 100
 
-      # per default use the first shipping method
-      select_a_possible_shipping_rate
+        # # create shipments, deletes adjusments
+        create_proposed_shipments
+
+        # per default use the first shipping method
+        select_a_possible_shipping_rate
+
+        set_shipments_cost
+        refresh_shipment_rates
+      end
 
       # update shippment costs
-      set_shipments_cost
-      refresh_shipment_rates
-
       # and free shipping
       apply_free_shipping_promotions if shipments_available?
 
       # remove or add cod payment adjustments
       update_adjustments_on_payment_change
 
-      # #create tax adjustments
-      create_tax_charge!
-
-      update_totals
+      # lets create a tax adjustments
+      # i'm not sure we need this so disabled by now 
+      
+      # create_tax_charge!
+      # update_totals
     end
 
     def select_a_possible_shipping_rate

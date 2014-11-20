@@ -12,7 +12,7 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
-    before_action :update_cart_and_adjustments, except: 'show'
+    before_action :update_cart_and_adjustments, except: ['show', 'populate']
 
     helper Spree::CheckoutHelper
   
