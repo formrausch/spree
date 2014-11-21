@@ -1,10 +1,11 @@
-require 'spree/core/validators/email'
 require 'spree/order/checkout'
 
 module Spree
   class Order < Spree::Base
     include Spree::Order::Checkout
     include Spree::Order::CurrencyUpdater
+    include ActionView::Helpers::TextHelper
+
 
     checkout_flow do
       go_to_state :address
@@ -55,6 +56,8 @@ module Spree
       end
     end
 
+
+
     accepts_nested_attributes_for :line_items
     accepts_nested_attributes_for :bill_address
     accepts_nested_attributes_for :ship_address
@@ -65,17 +68,19 @@ module Spree
     before_validation :set_currency
     before_validation :generate_order_number, on: :create
     before_validation :clone_billing_address, if: :use_billing?
-    attr_accessor :use_billing
 
+    before_validation :mirror_phone
 
     before_create :create_token
     before_create :link_by_email
     before_update :homogenize_line_item_currencies, if: :currency_changed?
 
-    validates :email, presence: true, if: :require_email
-    validates :email, email: true, if: :require_email, allow_blank: true
+    validates :email, email: true, presence: true, if: :require_on_address_page
     validates :number, uniqueness: true
     validate :has_available_shipment
+
+    validates :terms_of_service, acceptance: {accept: true, allow_nil: false}, if: :require_on_address_page
+
 
     make_permalink field: :number
 
@@ -114,6 +119,53 @@ module Spree
     def self.register_update_hook(hook)
       self.update_hooks.add(hook)
     end
+
+    # state_machine do
+    #   # before_transition all => all, do: :update_cart_info
+    # end
+
+    # clear cart, tax and shipping info and recalculate
+    # this way a user can change her address and the free shipping
+    # is applied correctly (and adjust the cart)
+    #
+    def update_cart_info
+      if !shipments_available? || state == 'payment'
+        puts "." * 100
+
+        # # create shipments, deletes adjusments
+        create_proposed_shipments
+
+        # per default use the first shipping method
+        select_a_possible_shipping_rate
+
+        set_shipments_cost
+        refresh_shipment_rates
+      end
+
+      # update shippment costs
+      # and free shipping
+      apply_free_shipping_promotions if shipments_available?
+
+      # remove or add cod payment adjustments
+      update_adjustments_on_payment_change
+
+      # lets create a tax adjustments
+      # i'm not sure we need this so disabled by now 
+      
+      # create_tax_charge!
+      # update_totals
+    end
+
+    def select_a_possible_shipping_rate
+      if shipments_available?
+        shipments.first.selected_shipping_rate_id = shipments.first.shipping_rates.first
+      end
+    end
+
+    def shipments_available?
+      shipments.present? && !shipments.any? { |shipment| !shipment.valid? || shipment.shipping_rates.blank? }
+    end
+
 
     def all_adjustments
       Adjustment.where("order_id = :order_id OR (adjustable_id = :order_id AND adjustable_type = 'Spree::Order')",
@@ -174,6 +226,31 @@ module Spree
       completed_at.present?
     end
 
+    def require_on_address_page
+      # true unless state == 'cart' || new_record? or ['cart'].include?(state)
+      return false if state == 'cart'
+      true
+    end
+
+    def mirror_phone
+      if ship_address.present? && bill_address.present?
+        ship_address.phone = bill_address.phone
+      end
+    end
+
+    def payed?
+      self.payments.where.not("state" => "invalid").any? do |p|
+        p.state == "completed"
+      end
+    end
+
+    def save_user_address(user)
+      if user.present?
+        user.ship_address = self.ship_address if self.ship_address && self.ship_address.valid?
+        user.bill_address = self.bill_address if self.bill_address && self.bill_address.valid?
+      end
+    end
+
     # Indicates whether or not the user is allowed to proceed to checkout.
     # Currently this is implemented as a check for whether or not there is at
     # least one LineItem in the Order.  Feel free to override this logic in your
@@ -221,6 +298,7 @@ module Spree
     end
 
     def clone_billing_address
+      return if bill_address.nil?
       if bill_address and self.ship_address.nil?
         self.ship_address = bill_address.clone
       else
@@ -315,7 +393,10 @@ module Spree
     end
 
     def can_ship?
-      self.complete? || self.resumed? || self.awaiting_return? || self.returned?
+      # self.complete? || self.resumed? || self.awaiting_return? || self.returned?
+      # FR: Fix bug in admin: Shipments are stuck in delivery state
+      # and cant be shipped
+      self.delivery? || self.complete? || self.resumed? || self.awaiting_return? || self.returned?
     end
 
     def credit_cards
@@ -348,7 +429,11 @@ module Spree
     end
 
     def deliver_order_confirmation_email
-      OrderMailer.confirm_email(self.id).deliver
+      if ENV["ASYNC_EMAILS"] && defined?(Sidekiq)
+        Spree::OrderMailer.delay.confirm_email(self.id)
+      else
+        OrderMailer.confirm_email(self.id).deliver
+      end
       update_column(:confirmation_delivered, true)
     end
 
@@ -648,7 +733,7 @@ module Spree
       end
 
       def use_billing?
-        @use_billing == true || @use_billing == 'true' || @use_billing == '1'
+        self.use_billing == true
       end
 
       def set_currency

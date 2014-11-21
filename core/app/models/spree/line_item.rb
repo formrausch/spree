@@ -17,7 +17,7 @@ module Spree
     validates :quantity, numericality: {
       only_integer: true,
       greater_than: -1,
-      message: Spree.t('validation.must_be_int')
+      message: I18n.t('spree.validation.must_be_int')
     }
     validates :price, numericality: true
     validates_with Stock::AvailabilityValidator
@@ -33,6 +33,7 @@ module Spree
     delegate :name, :description, :sku, :should_track_inventory?, to: :variant
 
     attr_accessor :target_shipment
+    attr_accessor :deleted
 
     def copy_price
       if variant
@@ -94,6 +95,19 @@ module Spree
     def variant
       Spree::Variant.unscoped { super }
     end
+
+
+    def single_vat
+      I18n.t("products.vat", vat: self.tax_category.tax_rates.first.amount * 100)
+    end
+
+    def single_vat_name
+      I18n.t("products.vat", vat: self.tax_category.tax_rates.first.name.split(" ").last)
+    end
+
+    def display_tax_description
+      I18n.t "cart.lineitem.#{self.tax_category.description.downcase.gsub(" ", "-")}"
+    end    
 
     private
       def update_inventory

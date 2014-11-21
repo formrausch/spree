@@ -3,7 +3,7 @@ module Spree
     module Processing
       def process!
         if payment_method && payment_method.source_required?
-          if source
+          if source 
             if !processing?
               if payment_method.supports?(source) || token_based?
                 if payment_method.auto_capture?

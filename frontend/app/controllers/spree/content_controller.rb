@@ -13,7 +13,7 @@ module Spree
     end
 
     def cvv
-      render :layout => false
+      render :layout => "minimal"
     end
 
     def fire_visited_path

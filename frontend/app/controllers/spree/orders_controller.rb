@@ -12,6 +12,10 @@ module Spree
     before_filter :apply_coupon_code, only: :update
     skip_before_filter :verify_authenticity_token
 
+    before_action :update_cart_and_adjustments, except: ['show', 'populate']
+
+    helper Spree::CheckoutHelper
+  
     def show
       @order = Order.find_by_number!(params[:id])
     end
@@ -44,7 +48,9 @@ module Spree
       populator = Spree::OrderPopulator.new(current_order(create_order_if_necessary: true), current_currency)
 
       if populator.populate(params[:variant_id], params[:quantity])
+        flash[:notice] = Spree.t(:added_to_cart)
         respond_with(@order) do |format|
+          format.js   { redirect_to :back }
           format.html { redirect_to cart_path }
         end
       else
@@ -81,6 +87,13 @@ module Spree
     end
 
     private
+
+      def update_cart_and_adjustments
+        if current_order 
+          current_order.state ='cart'
+          current_order.update_cart_info  
+        end
+      end
 
       def order_params
         if params[:order]
