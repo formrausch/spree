@@ -149,11 +149,7 @@ module Spree
       # remove or add cod payment adjustments
       update_adjustments_on_payment_change
 
-      # lets create a tax adjustments
-      # i'm not sure we need this so disabled by now 
-      
-      # create_tax_charge!
-      # update_totals
+      update_totals
     end
 
     def select_a_possible_shipping_rate
